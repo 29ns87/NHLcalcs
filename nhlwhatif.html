@@ -46,7 +46,7 @@
     }
     .card h3 { margin:0 0 8px; font-size:1.22rem; }
     ul { margin:0; padding-left:20px; }
-    input, button {
+    input, button, select {
       padding:10px;
       font-size:1rem;
       width:100%;
@@ -131,7 +131,9 @@
     <div class="main-column">
       <h1>Playoff Scenario Calc</h1>
       <div style="max-width:750px; margin:0 auto 30px;">
-        <input type="text" id="teamInput" placeholder="e.x. Colorado Avalanche" />
+        <select id="teamSelect">
+          <option value="">Select a team...</option>
+        </select>
         <button id="calcBtn">Show Playoff Scenarios</button>
       </div>
       <div id="result"></div>
@@ -142,11 +144,11 @@
   </div>
   <script>
     const CORS_PROXY = "https://corsproxy.io/?";
-    const API_URL = "https://api-web.nhle.com/v1/standings/2025-02-19";
+    const API_URL = "https://api-web.nhle.com/v1/standings/now";
     const TOTAL_GAMES = 82;
 
     const divisionMap = {
-      "Central": ["Chicago Blackhawks","Colorado Avalanche","Dallas Stars","Minnesota Wild","Nashville Predators","St. Louis Blues","Winnipeg Jets"],
+      "Central": ["Chicago Blackhawks","Colorado Avalanche","Dallas Stars","Minnesota Wild","Nashville Predators","St. Louis Blues","Winnipeg Jets", "Utah Hockey Club"],
       "Pacific": ["Anaheim Ducks","Arizona Coyotes","Calgary Flames","Edmonton Oilers","Los Angeles Kings","San Jose Sharks","Vancouver Canucks","Vegas Golden Knights"],
       "Atlantic": ["Boston Bruins","Buffalo Sabres","Detroit Red Wings","Florida Panthers","Montreal Canadiens","Ottawa Senators","Tampa Bay Lightning","Toronto Maple Leafs"],
       "Metropolitan": ["Carolina Hurricanes","Columbus Blue Jackets","Philadelphia Flyers","Pittsburgh Penguins","New Jersey Devils","New York Islanders","New York Rangers","Washington Capitals"]
@@ -159,8 +161,11 @@
     ];
     const westTeams = [
       "Chicago Blackhawks", "Colorado Avalanche", "Dallas Stars", "Minnesota Wild", "Nashville Predators", "St. Louis Blues", "Winnipeg Jets",
-      "Anaheim Ducks", "Arizona Coyotes", "Calgary Flames", "Edmonton Oilers", "Los Angeles Kings", "San Jose Sharks", "Vancouver Canucks", "Vegas Golden Knights"
+      "Anaheim Ducks", "Arizona Coyotes", "Calgary Flames", "Edmonton Oilers", "Los Angeles Kings", "San Jose Sharks", "Vancouver Canucks", "Vegas Golden Knights", 
+      "Utah Hockey Club"
     ];
+
+    const allTeams = eastTeams.concat(westTeams);
 
     const teamAbbrevs = {
       "Anaheim Ducks": "ANA", "Arizona Coyotes": "ARI", "Boston Bruins": "BOS", "Buffalo Sabres": "BUF",
@@ -170,11 +175,12 @@
       "Nashville Predators": "NSH", "New Jersey Devils": "NJD", "New York Islanders": "NYI", "New York Rangers": "NYR",
       "Ottawa Senators": "OTT", "Philadelphia Flyers": "PHI", "Pittsburgh Penguins": "PIT", "San Jose Sharks": "SJS",
       "Seattle Kraken": "SEA", "St. Louis Blues": "STL", "Tampa Bay Lightning": "TBL", "Toronto Maple Leafs": "TOR",
-      "Vancouver Canucks": "VAN", "Vegas Golden Knights": "VGK", "Washington Capitals": "WSH", "Winnipeg Jets": "WPG"
+      "Vancouver Canucks": "VAN", "Vegas Golden Knights": "VGK", "Washington Capitals": "WSH", "Winnipeg Jets": "WPG",
+      "Utah Hockey Club": "UTA"
     };
 
     function populateSidebar(sidebarId, teams) {
-      fetch('https://api-web.nhle.com/v1/standings/2025-02-10')
+      fetch('https://api-web.nhle.com/v1/standings/now')
         .then(res => res.json())
         .then(data => {
           const logoMap = {};
@@ -207,6 +213,16 @@
     }
     populateSidebar('east-sidebar', eastTeams);
     populateSidebar('west-sidebar', westTeams);
+
+    // Populate dropdown with all teams
+    const teamSelect = document.getElementById("teamSelect");
+    allTeams.forEach(team => {
+      const opt = document.createElement("option");
+      opt.value = team;
+      opt.textContent = team;
+      teamSelect.appendChild(opt);
+    });
+
     const nhlColors = {
       "Anaheim Ducks":             { card: "#FC4C02", cardFg: "#fff", bg: "#fff", main: "#FC4C02" },
       "Arizona Coyotes":           { card: "#8C2633", cardFg: "#fff", bg: "#fff", main: "#8C2633" },
@@ -239,7 +255,8 @@
       "Vancouver Canucks":         { card: "#00205B", cardFg: "#fff", bg: "#fff", main: "#00205B" },
       "Vegas Golden Knights":      { card: "#B4975A", cardFg: "#111", bg: "#fff", main: "#B4975A" },
       "Washington Capitals":       { card: "#041E42", cardFg: "#fff", bg: "#fff", main: "#041E42" },
-      "Winnipeg Jets":             { card: "#041E42", cardFg: "#fff", bg: "#fff", main: "#041E42" }
+      "Winnipeg Jets":             { card: "#041E42", cardFg: "#fff", bg: "#fff", main: "#041E42" },
+      "Utah Hockey Club":          {card: "#6CACE3",  cardFg: "#ffffff", bg: "#ffffff", main: "#000000"}
     };
 
     function getDivision(team) {
@@ -269,7 +286,6 @@
       }).join("");
     }
 
-
     function highlightSidebarLogo(selectedTeam) {
       document.querySelectorAll('.sidebar img').forEach(img => {
         if (img.alt === selectedTeam) {
@@ -281,15 +297,14 @@
     }
 
     document.getElementById("calcBtn").addEventListener("click", async () => {
-      const input = document.getElementById("teamInput").value.trim();
-      const inputLower = input.toLowerCase();
+      const team = teamSelect.value;
       const resDiv = document.getElementById("result");
       const cards = document.getElementById("scenario-cards");
       cards.innerHTML = "";
-      if (!input) {
+      if (!team) {
         document.body.style.background = ""; // reset
         highlightSidebarLogo(null);
-        return resDiv.innerHTML = "<strong>Please enter a team name.</strong>";
+        return resDiv.innerHTML = "<strong>Please select a team.</strong>";
       }
 
       resDiv.innerHTML = "Loading...";
@@ -297,16 +312,14 @@
         const resp = await fetch(CORS_PROXY + encodeURIComponent(API_URL));
         const data = await resp.json();
         const all = data.standings;
-        const user = all.find(t => t.teamName.default.toLowerCase() === inputLower);
+        const user = all.find(t => t.teamName.default === team);
         if (!user) {
           document.body.style.background = ""; // reset
           highlightSidebarLogo(null);
-          return resDiv.innerHTML = `<strong>Team "${input}" not found.</strong>`;
+          return resDiv.innerHTML = `<strong>Team "${team}" not found.</strong>`;
         }
 
-   
         highlightSidebarLogo(user.teamName.default);
-
 
         const teamColors = nhlColors[user.teamName.default];
         if (teamColors && teamColors.bg) {
@@ -367,9 +380,9 @@
       }
     });
 
-    document.getElementById("teamInput").addEventListener("blur", () => {
-      const team = document.getElementById("teamInput").value.trim();
-      highlightSidebarLogo(team);
+    // Highlight sidebar logo on change
+    teamSelect.addEventListener("change", () => {
+      highlightSidebarLogo(teamSelect.value);
     });
   </script>
 </body>
