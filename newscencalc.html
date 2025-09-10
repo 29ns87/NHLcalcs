@@ -154,9 +154,12 @@
     </div>
     <div class="main-content">
       <h1>What If Calculator</h1>
+
       <div class="team-ui-box" id="uiBox">
         <label for="teamInput">Team Name:</label>
-        <input type="text" id="teamInput" placeholder="ex. Colorado Avalanche" />
+        <select id="teamSelect">
+          <option value="">Select a team...</option>
+        </select>
         <label for="winsSelect"> Remaining Games:</label>
         <select id="winsSelect"></select>
         <button id="simulateBtn">Simulate</button>
@@ -178,8 +181,11 @@
     ];
     const westTeams = [
       "Chicago Blackhawks", "Colorado Avalanche", "Dallas Stars", "Minnesota Wild", "Nashville Predators", "St. Louis Blues", "Winnipeg Jets",
-      "Anaheim Ducks", "Arizona Coyotes", "Calgary Flames", "Edmonton Oilers", "Los Angeles Kings", "San Jose Sharks", "Vancouver Canucks", "Vegas Golden Knights"
+      "Anaheim Ducks", "Arizona Coyotes", "Calgary Flames", "Edmonton Oilers", "Los Angeles Kings", "San Jose Sharks", "Vancouver Canucks", "Vegas Golden Knights", 
+      "Utah Hockey Club" 
     ];
+
+    const allTeams = eastTeams.concat(westTeams);
 
     const teamAbbrevs = {
       "Anaheim Ducks": "ANA", "Arizona Coyotes": "ARI", "Boston Bruins": "BOS", "Buffalo Sabres": "BUF",
@@ -189,11 +195,12 @@
       "Nashville Predators": "NSH", "New Jersey Devils": "NJD", "New York Islanders": "NYI", "New York Rangers": "NYR",
       "Ottawa Senators": "OTT", "Philadelphia Flyers": "PHI", "Pittsburgh Penguins": "PIT", "San Jose Sharks": "SJS",
       "Seattle Kraken": "SEA", "St. Louis Blues": "STL", "Tampa Bay Lightning": "TBL", "Toronto Maple Leafs": "TOR",
-      "Vancouver Canucks": "VAN", "Vegas Golden Knights": "VGK", "Washington Capitals": "WSH", "Winnipeg Jets": "WPG"
+      "Vancouver Canucks": "VAN", "Vegas Golden Knights": "VGK", "Washington Capitals": "WSH", "Winnipeg Jets": "WPG",
+      "Utah Hockey Club": "UTA"
     };
 
     function populateSidebar(sidebarId, teams) {
-      fetch('https://api-web.nhle.com/v1/standings/2025-02-10')
+      fetch('https://api-web.nhle.com/v1/standings/now')
         .then(res => res.json())
         .then(data => {
           const logoMap = {};
@@ -222,6 +229,14 @@
     }
     populateSidebar('east-sidebar', eastTeams);
     populateSidebar('west-sidebar', westTeams);
+
+    const teamSelect = document.getElementById("teamSelect");
+    allTeams.forEach(team => {
+      const opt = document.createElement("option");
+      opt.value = team;
+      opt.textContent = team;
+      teamSelect.appendChild(opt);
+    });
 
     const nhlColors = {
       "Anaheim Ducks":             { main: "#FC4C02", secondary: "#111D25" },
@@ -255,11 +270,12 @@
       "Vancouver Canucks":         { main: "#00205B", secondary: "#00843D" },
       "Vegas Golden Knights":      { main: "#B4975A", secondary: "#333F42" },
       "Washington Capitals":       { main: "#041E42", secondary: "#C8102E" },
-      "Winnipeg Jets":             { main: "#041E42", secondary: "#041E42" }
+      "Winnipeg Jets":             { main: "#041E42", secondary: "#041E42" },
+      "Utah Hockey Club":          { main: "#6CACE3", secondary: "#ffffff" }
     };
 
     const CORS_PROXY = "https://corsproxy.io/?";
-    const API_URL = "https://api-web.nhle.com/v1/standings/2025-02-19";
+    const API_URL = "https://api-web.nhle.com/v1/standings/now";
     const TOTAL_GAMES = 82;
 
     let latestStandings = [];
@@ -283,7 +299,7 @@
       "Western Conference": {
         "Central Division": [
           "Chicago Blackhawks", "Colorado Avalanche", "Dallas Stars", "Minnesota Wild",
-          "Nashville Predators", "St. Louis Blues", "Winnipeg Jets"
+          "Nashville Predators", "St. Louis Blues", "Winnipeg Jets", "Utah Hockey Club"
         ],
         "Pacific Division": [
           "Anaheim Ducks", "Arizona Coyotes", "Calgary Flames", "Edmonton Oilers",
@@ -338,55 +354,67 @@
       output.style.color = currentColors.main;
     }
 
-    function updateUIBoxColors(colors) {
-      const box = document.getElementById("uiBox");
-      box.style.borderColor = colors.secondary;
-      box.style.background = "#fff";
-    }
-
     function resetColors() {
       currentColors = { main: "#222", secondary: "#ccc" };
-      updateUIBoxColors(currentColors);
       document.getElementById("output").style.color = currentColors.main;
     }
 
-    document.getElementById("simulateBtn").addEventListener("click", async () => {
-      const teamNameInput = document.getElementById("teamInput").value.trim();
-      const teamNameLower = teamNameInput.toLowerCase();
-      const wins = parseInt(document.getElementById("winsSelect").value);
-      const output = document.getElementById("output");
-      output.innerHTML = "Loading...";
-
+    teamSelect.addEventListener("change", async () => {
+      const teamName = teamSelect.value;
+      if (!teamName) return;
       try {
         const res = await fetch(CORS_PROXY + encodeURIComponent(API_URL));
         const data = await res.json();
         const teams = data.standings;
+        const userTeam = teams.find(t => t.teamName.default === teamName);
+        if (!userTeam) {
+          resetColors();
+          return;
+        }
+        const remaining = TOTAL_GAMES - userTeam.gamesPlayed;
+        const select = document.getElementById("winsSelect");
+        select.innerHTML = "";
+        for (let i = 0; i <= remaining; i++) {
+          const option = document.createElement("option");
+          option.value = i;
+          option.textContent = `${i} win${i !== 1 ? 's' : ''} out of ${remaining}`;
+          select.appendChild(option);
+        }
+      } catch (err) {
+        resetColors();
+        console.error(err);
+      }
+    });
 
-        const userTeam = teams.find(t => t.teamName.default.toLowerCase() === teamNameLower);
+    document.getElementById("simulateBtn").addEventListener("click", async () => {
+      const teamNameInput = teamSelect.value.trim();
+      const wins = parseInt(document.getElementById("winsSelect").value);
+      const output = document.getElementById("output");
+      output.innerHTML = "Loading...";
+      try {
+        const res = await fetch(CORS_PROXY + encodeURIComponent(API_URL));
+        const data = await res.json();
+        const teams = data.standings;
+        const userTeam = teams.find(t => t.teamName.default === teamNameInput);
         if (!userTeam) {
           resetColors();
           output.innerHTML = `<strong>Team not found. Please check the name.</strong>`;
           return;
         }
-
         selectedTeam = userTeam.teamName.default;
         const { conference, division } = findTeamGroup(selectedTeam);
         selectedConference = conference;
         selectedDivision = division;
-
         currentColors = nhlColors[selectedTeam] || { main: "#222", secondary: "#ccc" };
-        updateUIBoxColors(currentColors);
-
         const gamesPlayed = userTeam.gamesPlayed;
         const remaining = TOTAL_GAMES - gamesPlayed;
         const addedPoints = wins * 2;
         const finalPoints = userTeam.points + addedPoints;
 
-        // --- WIN% MODEL ---
         const projectedStandings = teams.map(t => {
           const gpLeft = TOTAL_GAMES - t.gamesPlayed;
           let projPts;
-          if (t.teamName.default.toLowerCase() === teamNameLower) {
+          if (t.teamName.default === teamNameInput) {
             projPts = finalPoints;
           } else {
             const ptsPct = t.gamesPlayed > 0 ? t.points / (t.gamesPlayed * 2) : 0.5;
@@ -395,7 +423,7 @@
           return {
             name: t.teamName.default,
             points: projPts,
-            isUser: t.teamName.default.toLowerCase() === teamNameLower
+            isUser: t.teamName.default === teamNameInput
           };
         });
 
@@ -422,46 +450,12 @@
             ? `<p style="color:green;"><strong>${selectedTeam} likely MAKES the playoffs.</strong></p>`
             : `<p style="color:red;"><strong>${selectedTeam} likely MISSES the playoffs.</strong></p>`;
         }
-
         output.innerHTML = resultText;
-
         renderStandings("league", projectedStandings);
-
         output.style.color = currentColors.main;
       } catch (err) {
         resetColors();
         output.innerHTML = `<strong>Error:</strong> ${err.message}`;
-      }
-    });
-
-    document.getElementById("teamInput").addEventListener("blur", async () => {
-      const teamName = document.getElementById("teamInput").value.trim().toLowerCase();
-      try {
-        const res = await fetch(CORS_PROXY + encodeURIComponent(API_URL));
-        const data = await res.json();
-        const teams = data.standings;
-        const userTeam = teams.find(t => t.teamName.default.toLowerCase() === teamName);
-        if (!userTeam) {
-          resetColors();
-          return;
-        }
-
-        const colors = nhlColors[userTeam.teamName.default] || { main: "#222", secondary: "#ccc" };
-        currentColors = colors;
-        updateUIBoxColors(colors);
-
-        const remaining = TOTAL_GAMES - userTeam.gamesPlayed;
-        const select = document.getElementById("winsSelect");
-        select.innerHTML = "";
-        for (let i = 0; i <= remaining; i++) {
-          const option = document.createElement("option");
-          option.value = i;
-          option.textContent = `${i} win${i !== 1 ? 's' : ''} out of ${remaining}`;
-          select.appendChild(option);
-        }
-      } catch (err) {
-        resetColors();
-        console.error(err);
       }
     });
 
@@ -477,6 +471,7 @@
     });
 
     resetColors();
+
   </script>
 </body>
 </html>
